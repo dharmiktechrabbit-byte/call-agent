@@ -35,8 +35,8 @@ exports.listen = (req, res) => {
         input: "speech",
         action: `${process.env.NGROK_URL}/process-speech`,
         speechTimeout: "auto",
-        language: "en-IN",
-        enhanced: "true"
+        language: "hi-IN",
+        hints: "अपॉइंटमेंट, दाँत, दर्द, सफाई, भरना, जड़ का इलाज, ब्रेसेज़, इन्विज़लाइन, इम्प्लांट, एक्सरे, बच्चों की जाँच, डॉक्टर अंजलि, डॉक्टर राहुल, सोमवार, मंगलवार, बुधवार, गुरुवार, शुक्रवार, शनिवार, સફાઈ, દાંત, દર્દ, ડૉક્ટર, અપોઇન્ટમેન્ટ, appointment, cleaning, filling, root canal, braces, implant, surgery, checkup"
     });
 
     // If user says nothing, loop back and listen again
