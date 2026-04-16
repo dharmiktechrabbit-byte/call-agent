@@ -15,7 +15,7 @@ async function transcribeAudio(audioBuffer) {
     // Whisper was trained on 16kHz — this reduces misrecognition on telephone audio
     const upsampled = new Int16Array(pcmData.length * 2);
     for (let i = 0; i < pcmData.length; i++) {
-        upsampled[i * 2]     = pcmData[i];
+        upsampled[i * 2] = pcmData[i];
         upsampled[i * 2 + 1] = pcmData[i];
     }
 
@@ -104,12 +104,12 @@ Rules:
 - End politely
 - Keep every reply under 2 sentences — this is a phone call, be brief and clear
 
-Booking Flow:
-1. Identify treatment
-2. Ask preferred time
-3. Confirm name
-4. Confirm phone
-5. Confirm booking politely
+STRICT BOOKING FLOW:
+1. Ask treatment first
+2. Ask preferred date/time second
+3. Ask patient full name third
+4. Confirm appointment politely
+5. Never ask for phone number because caller ID is already available from Twilio
 `;
 
 async function getAiReplyFromText(userText, history = []) {
