@@ -5,30 +5,51 @@ const client = twilio(
     process.env.TWILIO_AUTH_TOKEN
 );
 
-const sendWhatsAppMessage = async ({ phone, name, treatment, time, summary }) => {
+const sendWhatsAppMessage = async ({
+    phone,
+    name,
+    treatment,
+    time,
+    summary,
+    paymentLink
+}) => {
     try {
         console.log("📲 WhatsApp send requested");
         console.log("📞 Raw phone:", phone);
-        console.log("👤 Name:", name);
-        console.log("🦷 Treatment:", treatment);
-        console.log("🕒 Time:", time);
 
-        // Phone from Twilio is already E.164 (+919054535541) — don't add +91 again
         const cleanPhone = phone.startsWith("+") ? phone : `+91${phone}`;
         const toNumber = `whatsapp:${cleanPhone}`;
-        console.log("📤 Sending TO:", toNumber);
-        console.log("📥 Sending FROM:", process.env.TWILIO_WHATSAPP_NUMBER);
 
-        // Use summary (AI confirmation reply) as fallback when fields are missing
-        const displayName      = name      || "Patient";
+        const displayName = name || "Patient";
         const displayTreatment = treatment || "dental treatment";
-        const displayTime      = time      || "your scheduled time";
+        const displayTime = time || "your scheduled time";
 
-        const body = summary
-            ? `🦷 *Bright Smile Dental Clinic*\n\nनमस्ते ${displayName} जी,\n\n${summary}\n\nThank you for booking with us! 🙏`
-            : `🦷 *Bright Smile Dental Clinic*\n\nनमस्ते ${displayName} जी,\nआपकी ${displayTreatment} की अपॉइंटमेंट ${displayTime} पर बुक हो गई है।\nधन्यवाद 🙏`;
+        let body = "";
 
-        console.log("📝 Message body:", body);
+        if (summary) {
+            body = `🦷 *Bright Smile Dental Clinic*
+
+नमस्ते ${displayName} जी,
+
+${summary}`;
+        } else {
+            body = `🦷 *Bright Smile Dental Clinic*
+
+नमस्ते ${displayName} जी,
+आपकी ${displayTreatment} की अपॉइंटमेंट ${displayTime} पर बुक हो गई है।`;
+        }
+
+        // ✅ Add Stripe payment link
+        if (paymentLink) {
+            body += `
+
+💳 कृपया payment यहाँ complete करें:
+${paymentLink}`;
+        }
+
+        body += `
+
+Thank you for booking with us! 🙏`;
 
         const message = await client.messages.create({
             from: process.env.TWILIO_WHATSAPP_NUMBER,
@@ -37,17 +58,10 @@ const sendWhatsAppMessage = async ({ phone, name, treatment, time, summary }) =>
         });
 
         console.log("✅ WhatsApp sent successfully");
-        console.log("🆔 Message SID:", message.sid);
-        console.log("📦 Full Twilio response:", message);
-
         return message;
-    } catch (error) {
-        console.error("❌ WhatsApp send failed");
-        console.error("❌ Error message:", error.message);
-        console.error("❌ Error code:", error.code);
-        console.error("❌ More info:", error.moreInfo);
-        console.error("❌ Status:", error.status);
 
+    } catch (error) {
+        console.error("❌ WhatsApp send failed", error.message);
         throw error;
     }
 };

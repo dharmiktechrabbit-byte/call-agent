@@ -3,6 +3,7 @@ const { makeIndiaCall } = require("../services/twilioService");
 const { getAiReplyFromText } = require("../services/aiService");
 const { textToSpeechFile } = require("../services/ttsService");
 const { sendWhatsAppMessage } = require("../services/whatsappService");
+const { createPaymentLink } = require("../services/stripeService");
 
 // In-memory chat history per call (keyed by CallSid)
 const chatHistories = new Map();
@@ -10,10 +11,10 @@ const chatHistories = new Map();
 exports.incomingCall = async (req, res) => {
     console.log("📞 incomingCall webhook hit");
 
-    const callSid    = req.body.CallSid;
-    const from       = req.body.From || "";
-    const to         = req.body.To   || "";
-    const twilioNum  = process.env.TWILIO_PHONE_NUMBER || "";
+    const callSid = req.body.CallSid;
+    const from = req.body.From || "";
+    const to = req.body.To || "";
+    const twilioNum = process.env.TWILIO_PHONE_NUMBER || "";
 
     // For inbound calls: From = user, To = Twilio
     // For outbound calls: From = Twilio, To = user
@@ -91,15 +92,15 @@ function extractBookingInfo(text, booking) {
 
     // treatment — map Hindi keywords to treatment names
     if (!booking.treatment) {
-        if (text.includes("सफाई") || text.includes("cleaning"))           booking.treatment = "सफाई (Cleaning)";
-        else if (text.includes("भरना") || text.includes("filling"))       booking.treatment = "भरना (Filling)";
+        if (text.includes("सफाई") || text.includes("cleaning")) booking.treatment = "सफाई (Cleaning)";
+        else if (text.includes("भरना") || text.includes("filling")) booking.treatment = "भरना (Filling)";
         else if (text.includes("जड़") || text.includes("root canal") || text.includes("RCT")) booking.treatment = "जड़ का इलाज (RCT)";
-        else if (text.includes("ब्रेसेज़") || text.includes("braces"))   booking.treatment = "ब्रेसेज़ (Braces)";
+        else if (text.includes("ब्रेसेज़") || text.includes("braces")) booking.treatment = "ब्रेसेज़ (Braces)";
         else if (text.includes("इम्प्लांट") || text.includes("implant")) booking.treatment = "इम्प्लांट (Implant)";
-        else if (text.includes("सर्जरी") || text.includes("surgery"))    booking.treatment = "सर्जरी (Surgery)";
+        else if (text.includes("सर्जरी") || text.includes("surgery")) booking.treatment = "सर्जरी (Surgery)";
         else if (text.includes("एक्सरे") || text.includes("x-ray") || text.includes("xray")) booking.treatment = "एक्सरे (X-Ray)";
-        else if (text.includes("दर्द") || text.includes("pain"))         booking.treatment = "दर्द जाँच (Pain checkup)";
-        else if (text.includes("बच्चे") || text.includes("child"))       booking.treatment = "बच्चों की जाँच (Child checkup)";
+        else if (text.includes("दर्द") || text.includes("pain")) booking.treatment = "दर्द जाँच (Pain checkup)";
+        else if (text.includes("बच्चे") || text.includes("child")) booking.treatment = "बच्चों की जाँच (Child checkup)";
     }
 
     // time/date
@@ -159,14 +160,13 @@ exports.processSpeech = async (req, res) => {
             aiReply.includes("बुकिंग") ||
             aiReply.includes("हो गई है") ||
             aiReply.includes("बुक हो गई") ||
-            aiReply.includes("कंफर्म") ||   // anusvara variant
-            aiReply.includes("कन्फर्म") ||  // half-न variant
+            aiReply.includes("कंफर्म") ||
+            aiReply.includes("कन्फर्म") ||
             aiReply.includes("confirmed") ||
             aiReply.includes("appointment booked") ||
             aiReply.includes("booked");
 
-        // Extract name from AI reply if booking.name still missing
-        // e.g. AI says "धन्यवाद, धार्मिक!" or "धार्मिक, आपकी..."
+
         if (!booking.name) {
             const aiNameMatch = aiReply.match(/(?:धन्यवाद[,،]?\s*|नमस्ते[,،]?\s*)([^\s।!,،]+)\s*(?:जी|ji)?/i);
             if (aiNameMatch) booking.name = aiNameMatch[1];
@@ -176,11 +176,20 @@ exports.processSpeech = async (req, res) => {
         const bookingComplete = !!booking.phone;
 
         if (bookingConfirmed && bookingComplete) {
-            await sendWhatsAppMessage({ ...booking, summary: aiReply });
+            const paymentLink = await createPaymentLink({
+                name: booking.name,
+                treatment: booking.treatment
+            });
 
+            await sendWhatsAppMessage({
+                ...booking,
+                summary: aiReply,
+                paymentLink
+            });
+
+            console.log("💳 Stripe link:", paymentLink);
             console.log("✅ WhatsApp sent:", booking);
 
-            // optional cleanup after booking complete
             chatHistories.delete(callSid);
         }
 
