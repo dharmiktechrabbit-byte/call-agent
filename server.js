@@ -1,4 +1,4 @@
-require("dotenv").config();
+require("dotenv").config({ override: true });
 const http = require("http");
 const app = require("./src/app");
 const initMediaStream = require("./src/websocket/mediaStreamServer");

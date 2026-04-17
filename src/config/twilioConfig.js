@@ -1,7 +1,8 @@
 const dotenv = require("dotenv");
 const twilio = require("twilio");
 
-dotenv.config();
+dotenv.config({ override: true });
+
 
 const client = twilio(
     process.env.TWILIO_ACCOUNT_SID,

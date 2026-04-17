@@ -24,32 +24,14 @@ const sendWhatsAppMessage = async ({
         const displayTreatment = treatment || "dental treatment";
         const displayTime = time || "your scheduled time";
 
-        let body = "";
+        let body = `🦷 *Bright Smile Dental Clinic*\n\n`;
+        body += `${displayName}, aapki appointment ${displayTreatment} ke liye ${displayTime} confirm hui. Dhanyavaad!`;
 
-        if (summary) {
-            body = `🦷 *Bright Smile Dental Clinic*
-
-नमस्ते ${displayName} जी,
-
-${summary}`;
-        } else {
-            body = `🦷 *Bright Smile Dental Clinic*
-
-नमस्ते ${displayName} जी,
-आपकी ${displayTreatment} की अपॉइंटमेंट ${displayTime} पर बुक हो गई है।`;
-        }
-
-        // ✅ Add Stripe payment link
         if (paymentLink) {
-            body += `
-
-💳 कृपया payment यहाँ complete करें:
-${paymentLink}`;
+            body += `\n\n💳 *Advance Payment (Rs 500):*\n${paymentLink}`;
         }
 
-        body += `
-
-Thank you for booking with us! 🙏`;
+        body += `\n\n📍 Shop 4, Linking Road, Bandra West, Mumbai\n📞 +91 98200 11111\n\nThank you for choosing Bright Smile! 🙏`;
 
         const message = await client.messages.create({
             from: process.env.TWILIO_WHATSAPP_NUMBER,

@@ -4,7 +4,8 @@ const { getAiReplyFromText } = require("../services/aiService");
 const { textToSpeechFile } = require("../services/ttsService");
 const { sendWhatsAppMessage } = require("../services/whatsappService");
 const { createPaymentLink } = require("../services/stripeService");
-
+const { bookAppointment } = require("../services/appointmentService");
+const { parseBookingTime } = require("../utils/slotGenerator");
 // In-memory chat history per call (keyed by CallSid)
 const chatHistories = new Map();
 
@@ -26,7 +27,7 @@ exports.incomingCall = async (req, res) => {
     const twiml = new VoiceResponse();
 
     try {
-        const welcomeText = "Hello, welcome to Bright Smile Dental Clinic. How may I help you today?";
+        const welcomeText = "Hello, welcome to Bright Smile Dental Clinic. You can speak in English, Hindi, or Gujarati. How may I help you?";
         const fileName = await textToSpeechFile(welcomeText);
         twiml.play(`${process.env.NGROK_URL}/audio/${fileName}`);
         console.log("👋 Welcome audio sent");
@@ -47,8 +48,8 @@ exports.listen = (req, res) => {
         action: `${process.env.NGROK_URL}/process-speech`,
         speechTimeout: "auto",
         timeout: 8,
-        language: "hi-IN",
-        hints: "अपॉइंटमेंट, दाँत, दर्द, सफाई, भरना, जड़ का इलाज, ब्रेसेज़, इन्विज़लाइन, इम्प्लांट, एक्सरे, बच्चों की जाँच, डॉक्टर अंजलि, डॉक्टर राहुल, सोमवार, मंगलवार, बुधवार, गुरुवार, शुक्रवार, शनिवार, સફાઈ, દાંત, દર્દ, ડૉક્ટર, અપોઇન્ટમેન્ટ, appointment, cleaning, filling, root canal, braces, implant, surgery, checkup"
+        language: "en-IN",
+        hints: "kal, aaj, parso, subah, sham, baje, appointment, अपॉइंटमेंट, दाँत, दर्द, सफाई, भरना, जड़ का इलाज, ब्रेसेज़, इम्प्लांट, एक्सरे, डॉक्टर अंजलि, डॉक्टर राहुल, सोमवार, मंगलवार, बुधवार, गुरुवार, शुक्रवार, शनिवार, સફાઈ, દાંત, ડૉક્ટર, cleaning, filling, root canal, braces, implant, surgery, checkup, monday, tuesday, wednesday, thursday, friday, saturday"
     });
 
     // User silent for 8 seconds — ask if they need help
@@ -103,13 +104,23 @@ function extractBookingInfo(text, booking) {
         else if (text.includes("बच्चे") || text.includes("child")) booking.treatment = "बच्चों की जाँच (Child checkup)";
     }
 
-    // time/date
-    if (
-        text.includes("कल") ||
-        text.includes("आज") ||
-        text.includes("शाम") ||
-        text.includes("सुबह")
-    ) {
+    // time/date — capture any turn that mentions a time or day
+    const hasTimeWord =
+        text.includes("कल") || text.includes("आज") ||
+        text.includes("शाम") || text.includes("सुबह") ||
+        text.includes("tomorrow") || text.includes("today") ||
+        text.includes("morning") || text.includes("evening") ||
+        text.includes("monday") || text.includes("tuesday") ||
+        text.includes("wednesday") || text.includes("thursday") ||
+        text.includes("friday") || text.includes("saturday") ||
+        text.includes("सोमवार") || text.includes("मंगलवार") ||
+        text.includes("बुधवार") || text.includes("गुरुवार") ||
+        text.includes("शुक्रवार") || text.includes("शनिवार") ||
+        text.includes("am") || text.includes("pm") ||
+        text.includes("बजे") || /\d{1,2}:\d{2}/.test(text) ||
+        /\b\d{1,2}\s*(?:am|pm|बजे)/.test(text);
+
+    if (hasTimeWord) {
         booking.time = text;
     }
 
@@ -154,28 +165,58 @@ exports.processSpeech = async (req, res) => {
             { role: "assistant", content: aiReply }
         );
 
+        const replyLower = aiReply.toLowerCase();
         const bookingConfirmed =
             aiReply.includes("बुक कर दिया गया") ||
             aiReply.includes("बुक कर दी गई") ||
-            aiReply.includes("बुकिंग") ||
-            aiReply.includes("हो गई है") ||
             aiReply.includes("बुक हो गई") ||
-            aiReply.includes("कंफर्म") ||
-            aiReply.includes("कन्फर्म") ||
-            aiReply.includes("confirmed") ||
-            aiReply.includes("appointment booked") ||
-            aiReply.includes("booked");
+            aiReply.includes("कन्फर्म की गई") ||
+            aiReply.includes("कंफर्म की गई") ||
+            replyLower.includes("appointment confirmed") ||
+            replyLower.includes("appointment booked") ||
+            replyLower.includes("appointment is confirmed") ||
+            replyLower.includes("appointment has been booked") ||
+            replyLower.includes("book ho gaya hai") ||
+            replyLower.includes("confirm kiya gaya hai") ||
+            replyLower.includes("confirm kiya gaya") ||
+            replyLower.includes("confirm hui") ||
+            replyLower.includes("book kar di gai hai");
 
 
         if (!booking.name) {
-            const aiNameMatch = aiReply.match(/(?:धन्यवाद[,،]?\s*|नमस्ते[,،]?\s*)([^\s।!,،]+)\s*(?:जी|ji)?/i);
+            const aiNameMatch = aiReply.match(/(?:धन्यवाद[,،]?\s*|नमस्ते[,،]?\s*|dhanyavaad[,\s]+|thank you[,\s]+)([^\s।!,،]+)\s*(?:जी|ji)?/i);
             if (aiNameMatch) booking.name = aiNameMatch[1];
         }
 
         // Phone is always available from caller ID — that's enough to send WhatsApp
-        const bookingComplete = !!booking.phone;
-
+        const bookingComplete = !!booking.phone && !!booking.time;
         if (bookingConfirmed && bookingComplete) {
+            const selectedTime = parseBookingTime(booking.time);
+            console.log("📅 Parsed booking time:", selectedTime, "from:", booking.time);
+
+            const bookingResult = await bookAppointment({
+                patientName: booking.name || "Patient",
+                phone: booking.phone,
+                treatment: booking.treatment || "Dental Checkup",
+                selectedTime
+            });
+
+            if (!bookingResult.success) {
+                console.log("❌ No slots available:", bookingResult.message);
+                const fileName = await textToSpeechFile(bookingResult.message);
+                twiml.play(`${process.env.NGROK_URL}/audio/${fileName}`);
+                twiml.redirect(`${process.env.NGROK_URL}/listen`);
+                return res.type("text/xml").send(twiml.toString());
+            }
+
+            // If system moved to a different slot, inform caller
+            if (bookingResult.slotChanged) {
+                const altMsg = `The ${bookingResult.requestedLabel} slot was already booked. I have scheduled your appointment for ${bookingResult.bookedLabel} instead. Is that okay?`;
+                console.log("⏰ Slot changed:", altMsg);
+                const altFile = await textToSpeechFile(altMsg);
+                twiml.play(`${process.env.NGROK_URL}/audio/${altFile}`);
+            }
+
             const paymentLink = await createPaymentLink({
                 name: booking.name,
                 treatment: booking.treatment
@@ -183,10 +224,12 @@ exports.processSpeech = async (req, res) => {
 
             await sendWhatsAppMessage({
                 ...booking,
+                time: bookingResult.bookedLabel,
                 summary: aiReply,
                 paymentLink
             });
 
+            console.log("📅 Google Calendar event created:", bookingResult.bookedLabel);
             console.log("💳 Stripe link:", paymentLink);
             console.log("✅ WhatsApp sent:", booking);
 
