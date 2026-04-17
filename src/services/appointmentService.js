@@ -3,26 +3,14 @@ const { generateSlotTimes, formatSlotForSpeech } = require("../utils/slotGenerat
 
 // Try the requested slot first, then up to 4 next hourly slots same day
 async function findAvailableSlot(startISO) {
-    const IST_OFFSET_MS = 330 * 60 * 1000;
-    let current = new Date(startISO);
+    const { startTime, endTime } = generateSlotTimes(startISO);
+    const available = await checkSlotAvailability(startTime, endTime);
 
-    for (let attempt = 0; attempt < 5; attempt++) {
-        const { startTime, endTime } = generateSlotTimes(current.toISOString());
-        const available = await checkSlotAvailability(startTime, endTime);
-
-        if (available) {
-            return { startTime, endTime };
-        }
-
-        // Advance 1 hour
-        current = new Date(current.getTime() + 60 * 60 * 1000);
-
-        // Stop if past 7 PM IST
-        const istHour = new Date(current.getTime() + IST_OFFSET_MS).getUTCHours();
-        if (istHour >= 19) break;
+    if (available) {
+        return { startTime, endTime };
     }
 
-    return null; // No slots available today
+    return null; // Slot busy, do not auto-advance
 }
 
 async function bookAppointment({ patientName, phone, treatment, selectedTime }) {
@@ -31,7 +19,8 @@ async function bookAppointment({ patientName, phone, treatment, selectedTime }) 
     if (!slot) {
         return {
             success: false,
-            message: "Sorry, no slots are available today. Please try another day."
+            error: "busy",
+            message: "Sorry, this slot is already booked. Please try another time."
         };
     }
 

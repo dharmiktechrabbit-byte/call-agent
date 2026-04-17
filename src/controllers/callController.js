@@ -202,8 +202,18 @@ exports.processSpeech = async (req, res) => {
             });
 
             if (!bookingResult.success) {
-                console.log("❌ No slots available:", bookingResult.message);
-                const fileName = await textToSpeechFile(bookingResult.message);
+                console.log("❌ Booking failed:", bookingResult.error);
+                
+                // Tell AI the slot is busy so it can apologize in the correct language
+                const retryPrompt = `[SYSTEM: The booking for ${booking.time} failed because that slot is already taken. Please apologize to the patient and ask them to choose another time. Reply ONLY in the language they were just speaking (Hindi/Gujarati/English).]`;
+                
+                const apologyResponse = await getAiReplyFromText(retryPrompt, history);
+                const apologyText = apologyResponse; // In the original code, it returns string
+                
+                history.push({ role: "assistant", content: apologyText });
+                console.log("🤖 AI (Apology):", apologyText);
+
+                const fileName = await textToSpeechFile(apologyText);
                 twiml.play(`${process.env.NGROK_URL}/audio/${fileName}`);
                 twiml.redirect(`${process.env.NGROK_URL}/listen`);
                 return res.type("text/xml").send(twiml.toString());

@@ -2,13 +2,6 @@ const calendar = require("../config/googleCalendarConfig");
 
 const CALENDAR_ID = process.env.GOOGLE_CALENDAR_ID;
 
-function toISTString(utcISO) {
-    const IST_OFFSET_MS = 330 * 60 * 1000;
-    const dt = new Date(new Date(utcISO).getTime() + IST_OFFSET_MS);
-    const pad = (n) => String(n).padStart(2, "0");
-    return `${dt.getUTCFullYear()}-${pad(dt.getUTCMonth() + 1)}-${pad(dt.getUTCDate())}T${pad(dt.getUTCHours())}:${pad(dt.getUTCMinutes())}:00+05:30`;
-}
-
 const checkSlotAvailability = async (startTime, endTime) => {
     const response = await calendar.freebusy.query({
         requestBody: {
@@ -41,12 +34,12 @@ Treatment: ${treatment}
 Booked via AI Receptionist
       `,
             start: {
-                dateTime: toISTString(startTime),
-                timeZone: "Asia/Kolkata",
+                dateTime: startTime,
+                timeZone: "UTC",
             },
             end: {
-                dateTime: toISTString(endTime),
-                timeZone: "Asia/Kolkata",
+                dateTime: endTime,
+                timeZone: "UTC",
             },
         },
     });

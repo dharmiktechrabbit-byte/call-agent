@@ -110,6 +110,13 @@ STRICT BOOKING FLOW:
 3. Ask patient full name third
 4. Confirm appointment politely
 5. Never ask for phone number because caller ID is already available from Twilio
+
+FINAL CONFIRMATION RULE (VERY IMPORTANT):
+- After booking, respond in user's language (Hindi / Gujarati / English)
+- Then ALWAYS add this exact keyword at the end:
+CONFIRMED_BOOKING
+- Do NOT change this keyword
+- Do NOT translate it
 `;
 
 async function getAiReplyFromText(userText, history = []) {

@@ -13,9 +13,8 @@ function generateSlotTimes(startISO) {
 function parseBookingTime(timeText) {
     const text = (timeText || "").toLowerCase();
 
-    // Current time in IST
-    const IST_OFFSET_MS = 330 * 60 * 1000; // +5:30 in ms
-    const nowIST = new Date(Date.now() + IST_OFFSET_MS);
+    // Current time
+    const now = new Date();
 
     // Determine day offset — Devanagari + Roman script Hindi
     let dayOffset = 0;
@@ -29,12 +28,12 @@ function parseBookingTime(timeText) {
     const dayMap = {
         "सोमवार": 1, "monday": 1,
         "मंगलवार": 2, "tuesday": 2,
-        "बुधवार": 3, "wednesday": 3,
-        "गुरुवार": 4, "thursday": 4,
-        "शुक्रवार": 5, "friday": 5,
-        "शनिवार": 6, "saturday": 6,
+        "बुધવાર": 3, "wednesday": 3,
+        "ગુરુવાર": 4, "thursday": 4,
+        "શુક્રવાર": 5, "friday": 5,
+        "શનિવાર": 6, "saturday": 6,
     };
-    const currentDay = nowIST.getUTCDay();
+    const currentDay = now.getUTCDay();
     for (const [name, target] of Object.entries(dayMap)) {
         if (text.includes(name)) {
             let diff = target - currentDay;
@@ -45,34 +44,34 @@ function parseBookingTime(timeText) {
     }
 
     // Extract hour from text (e.g. "5:00", "11", "3 बजे")
-    let istHour = 11; // default 11 AM
+    let targetHour = 11; // default 11 AM
     const timeMatch = text.match(/(\d{1,2})(?::(\d{2}))?/);
     if (timeMatch) {
-        istHour = parseInt(timeMatch[1]);
+        targetHour = parseInt(timeMatch[1]);
         const isPM = text.includes("शाम") || text.includes("sham") || text.includes("pm") || text.includes("evening") || text.includes("afternoon");
         const isAM = text.includes("सुबह") || text.includes("subah") || text.includes("am") || text.includes("morning");
-        if (isPM && istHour < 12) istHour += 12;
-        if (isAM && istHour === 12) istHour = 0;
+        if (isPM && targetHour < 12) targetHour += 12;
+        if (isAM && targetHour === 12) targetHour = 0;
         // Ambiguous small numbers (1-8) without AM/PM marker → assume PM for clinic hours
-        if (!isAM && !isPM && istHour >= 1 && istHour <= 8) istHour += 12;
+        if (!isAM && !isPM && targetHour >= 1 && targetHour <= 8) targetHour += 12;
     }
 
-    // Clamp to clinic hours: 10 AM – 6 PM (last slot starts at 18:00)
-    if (istHour < 10) istHour = 10;
-    if (istHour > 18) istHour = 18;
+    // Clamp to clinic hours: 10 AM – 6 PM
+    if (targetHour < 10) targetHour = 10;
+    if (targetHour > 18) targetHour = 18;
 
-    // Build target date (in IST) and return as ISO string with +05:30
-    const targetIST = new Date(nowIST);
-    targetIST.setUTCDate(targetIST.getUTCDate() + dayOffset);
-    targetIST.setUTCHours(istHour, 0, 0, 0);
+    // Build target date (in UTC) and return as ISO string
+    const targetDate = new Date(now);
+    targetDate.setUTCDate(targetDate.getUTCDate() + dayOffset);
+    targetDate.setUTCHours(targetHour, 0, 0, 0);
 
     const pad = (n) => String(n).padStart(2, "0");
-    const y = targetIST.getUTCFullYear();
-    const m = pad(targetIST.getUTCMonth() + 1);
-    const d = pad(targetIST.getUTCDate());
-    const h = pad(istHour);
+    const y = targetDate.getUTCFullYear();
+    const m = pad(targetDate.getUTCMonth() + 1);
+    const d = pad(targetDate.getUTCDate());
+    const h = pad(targetHour);
 
-    return `${y}-${m}-${d}T${h}:00:00+05:30`;
+    return `${y}-${m}-${d}T${h}:00:00Z`;
 }
 
 // Format ISO datetime → readable Hindi/English string for TTS
