@@ -27,16 +27,22 @@ exports.incomingCall = async (req, res) => {
     const twiml = new VoiceResponse();
 
     try {
-        const welcomeText = "Hello, welcome to Bright Smile Dental Clinic. You can speak in English, Hindi, or Gujarati. How may I help you?";
+        const welcomeText = "Hello i am Priya, the AI receptionist for Bright Smile Dental Clinic. You can speak in English, Hindi, or Gujarati. How may I help you?";
         const fileName = await textToSpeechFile(welcomeText);
         twiml.play(`${process.env.NGROK_URL}/audio/${fileName}`);
         console.log("👋 Welcome audio sent");
     } catch (err) {
         console.error("❌ Welcome TTS error:", err.message);
-        twiml.say("Welcome to Bright Smile Dental Clinic. How may I help you?");
+        twiml.say("Hello i am Priya, the AI receptionist for Bright Smile Dental Clinic. You can speak in English, Hindi, or Gujarati. How may I help you?");
     }
 
-    twiml.redirect(`${process.env.NGROK_URL}/listen`);
+    // Connect to Media Stream for live interaction
+    const connect = twiml.connect();
+    const stream = connect.stream({
+        url: `wss://${process.env.NGROK_DOMAIN}/media-stream`
+    });
+    stream.parameter({ name: "phoneNumber", value: callerPhone });
+
     res.type("text/xml").send(twiml.toString());
 };
 
@@ -203,13 +209,13 @@ exports.processSpeech = async (req, res) => {
 
             if (!bookingResult.success) {
                 console.log("❌ Booking failed:", bookingResult.error);
-                
+
                 // Tell AI the slot is busy so it can apologize in the correct language
                 const retryPrompt = `[SYSTEM: The booking for ${booking.time} failed because that slot is already taken. Please apologize to the patient and ask them to choose another time. Reply ONLY in the language they were just speaking (Hindi/Gujarati/English).]`;
-                
+
                 const apologyResponse = await getAiReplyFromText(retryPrompt, history);
                 const apologyText = apologyResponse; // In the original code, it returns string
-                
+
                 history.push({ role: "assistant", content: apologyText });
                 console.log("🤖 AI (Apology):", apologyText);
 
