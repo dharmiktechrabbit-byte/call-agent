@@ -3,3 +3,4 @@ node_modules/
 scratch/
 public/*.mp3
 public/*.wav
+service-account.json
